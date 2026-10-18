@@ -17,7 +17,6 @@ bin/
 # OS
 .DS_Store
 Thumbs.db
-*.meta
 
 # Build
 Build/

@@ -1,93 +1,58 @@
 using UnityEngine;
-using UnityEngine.UI;
-using TMPro;
 
 public class GameManager : MonoBehaviour
 {
-    [SerializeField] private BoiController boiController;
-    [SerializeField] private Canvas canvas;
+    [SerializeField] private BoiController boi;
 
-    private TextMeshProUGUI gasText;
-    private TextMeshProUGUI speedText;
-    private TextMeshProUGUI statusText;
+    private GUIStyle labelStyle;
+    private GUIStyle centerStyle;
+    private Texture2D white;
 
     private void Start()
     {
-        if (boiController == null)
-            boiController = FindObjectOfType<BoiController>();
-
-        CreateUI();
-    }
-
-    private void CreateUI()
-    {
-        if (canvas == null)
-        {
-            var canvasGO = new GameObject("Canvas");
-            canvas = canvasGO.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasGO.AddComponent<GraphicRaycaster>();
-
-            var canvasScaler = canvasGO.AddComponent<CanvasScaler>();
-            canvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        }
-
-        // Gas text
-        var gasGO = new GameObject("GasText");
-        gasGO.transform.SetParent(canvas.transform);
-        gasText = gasGO.AddComponent<TextMeshProUGUI>();
-        var gasRect = gasGO.GetComponent<RectTransform>();
-        gasRect.anchorMin = new Vector2(0, 1);
-        gasRect.anchorMax = new Vector2(0, 1);
-        gasRect.offsetMin = Vector2.zero;
-        gasRect.offsetMax = new Vector2(200, -20);
-        gasText.text = "Gás: 100%";
-        gasText.fontSize = 36;
-        gasText.color = Color.white;
-
-        // Speed text
-        var speedGO = new GameObject("SpeedText");
-        speedGO.transform.SetParent(canvas.transform);
-        speedText = speedGO.AddComponent<TextMeshProUGUI>();
-        var speedRect = speedGO.GetComponent<RectTransform>();
-        speedRect.anchorMin = new Vector2(0, 0.5f);
-        speedRect.anchorMax = new Vector2(0, 0.5f);
-        speedRect.offsetMin = Vector2.zero;
-        speedRect.offsetMax = new Vector2(200, 50);
-        speedText.text = "Velocidade: 0";
-        speedText.fontSize = 36;
-        speedText.color = Color.white;
-
-        // Status text
-        var statusGO = new GameObject("StatusText");
-        statusGO.transform.SetParent(canvas.transform);
-        statusText = statusGO.AddComponent<TextMeshProUGUI>();
-        var statusRect = statusGO.GetComponent<RectTransform>();
-        statusRect.anchorMin = new Vector2(0.5f, 0);
-        statusRect.anchorMax = new Vector2(0.5f, 0);
-        statusRect.offsetMin = Vector2.zero;
-        statusRect.offsetMax = new Vector2(400, 100);
-        statusText.text = "WASD = Mover | Espaço = Peido\n(Pressione ESC para fechar)";
-        statusText.fontSize = 24;
-        statusText.alignment = TextAlignmentOptions.BottomCenter;
-        statusText.color = Color.white;
+        if (boi == null) boi = FindObjectOfType<BoiController>();
+        white = new Texture2D(1, 1);
+        white.SetPixel(0, 0, Color.white);
+        white.Apply();
     }
 
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Escape))
         {
-            #if UNITY_EDITOR
-                UnityEditor.EditorApplication.isPlaying = false;
-            #else
-                Application.Quit();
-            #endif
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
+    }
+
+    private void OnGUI()
+    {
+        if (boi == null) return;
+
+        if (labelStyle == null)
+        {
+            labelStyle = new GUIStyle(GUI.skin.label) { fontSize = 22, fontStyle = FontStyle.Bold };
+            labelStyle.normal.textColor = Color.white;
+            centerStyle = new GUIStyle(labelStyle) { alignment = TextAnchor.MiddleCenter, fontSize = 18 };
         }
 
-        if (boiController != null && gasText != null)
-        {
-            gasText.text = $"Gás: {boiController.GetGasPercent() * 100f:F0}%";
-            speedText.text = $"Vel: {boiController.GetCurrentSpeed():F1}";
-        }
+        float pct = boi.GasPercent;
+        GUI.color = new Color(0f, 0f, 0f, 0.6f);
+        GUI.DrawTexture(new Rect(20, 20, 260, 28), white);
+        GUI.color = pct > 0.2f ? new Color(0.4f, 0.9f, 0.3f) : new Color(0.95f, 0.3f, 0.2f);
+        GUI.DrawTexture(new Rect(22, 22, 256 * pct, 24), white);
+        GUI.color = Color.white;
+
+        GUI.Label(new Rect(20, 52, 400, 30), "Gas: " + Mathf.RoundToInt(pct * 100f) + "%", labelStyle);
+        GUI.Label(new Rect(20, 80, 400, 30), "Velocidade: " + boi.Speed.ToString("F1"), labelStyle);
+
+        if (Time.time - boi.NoGasMessageTime < 1f)
+            GUI.Label(new Rect(0, Screen.height * 0.3f, Screen.width, 40), "SEM GAS!", centerStyle);
+
+        GUI.Label(new Rect(0, Screen.height - 50, Screen.width, 40),
+            "WASD = mover | Espaco = peido | Esc = sair", centerStyle);
     }
 }

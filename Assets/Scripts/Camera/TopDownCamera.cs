@@ -2,44 +2,36 @@ using UnityEngine;
 
 public class TopDownCamera : MonoBehaviour
 {
-    [SerializeField] public Transform target;
-    [SerializeField] private float distance = 15f;
-    [SerializeField] private float height = 10f;
-    [SerializeField] private float angle = 45f;
-    [SerializeField] private float smoothDamp = 0.3f;
+    public Transform target;
+    [SerializeField] private float distance = 16f;
+    [SerializeField] private float pitch = 50f;
+    [SerializeField] private float yaw = 0f;
+    [SerializeField] private float smoothTime = 0.25f;
+    [SerializeField] private float lookHeight = 0.5f;
 
-    private Vector3 velocity = Vector3.zero;
-    private Camera cameraComponent;
+    private Vector3 velocity;
 
     private void Start()
     {
         if (target == null)
-            target = FindObjectOfType<BoiController>()?.transform;
+        {
+            BoiController boi = FindObjectOfType<BoiController>();
+            if (boi != null) target = boi.transform;
+        }
+        if (target != null) transform.position = DesiredPosition();
+        transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
+    }
 
-        cameraComponent = GetComponent<Camera>();
-        if (cameraComponent == null)
-            cameraComponent = gameObject.AddComponent<Camera>();
+    private Vector3 DesiredPosition()
+    {
+        Quaternion rot = Quaternion.Euler(pitch, yaw, 0f);
+        return target.position + Vector3.up * lookHeight + rot * Vector3.back * distance;
     }
 
     private void LateUpdate()
     {
-        if (target == null)
-            return;
-
-        // Calculate desired position
-        Vector3 angleRad = angle * Mathf.Deg2Rad * Vector3.up;
-        Vector3 direction = new Vector3(
-            Mathf.Sin(angle * Mathf.Deg2Rad),
-            Mathf.Tan(45f * Mathf.Deg2Rad),
-            Mathf.Cos(angle * Mathf.Deg2Rad)
-        ).normalized;
-
-        Vector3 desiredPosition = target.position - direction * distance + Vector3.up * height;
-
-        // Smooth damp to desired position
-        transform.position = Vector3.SmoothDamp(transform.position, desiredPosition, ref velocity, smoothDamp);
-
-        // Look at target slightly above ground
-        transform.LookAt(target.position + Vector3.up * 2f);
+        if (target == null) return;
+        transform.position = Vector3.SmoothDamp(transform.position, DesiredPosition(), ref velocity, smoothTime);
+        transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
     }
 }
