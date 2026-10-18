@@ -1,0 +1,31 @@
+# Unity generated
+Library/
+Temp/
+Logs/
+UserSettings/
+*.csproj
+*.sln
+obj/
+bin/
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+*.meta
+
+# Build
+Build/
+Dist/
+*.exe
+*.app
+*.x86_64
+
+# Custom
+.env
+local_settings.json
