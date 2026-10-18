@@ -106,67 +106,166 @@ public static class SceneSetup
     private static Transform CreateBoi()
     {
         var boi = new GameObject("Boi");
-        boi.transform.position = new Vector3(0, 0.6f, 0);
+        boi.transform.position = new Vector3(0, 0.9f, 0);
 
         var rb = boi.AddComponent<Rigidbody>();
         rb.mass = 1f;
         rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
 
         var col = boi.AddComponent<CapsuleCollider>();
-        col.height = 1.6f;
-        col.radius = 0.5f;
-        col.center = new Vector3(0, 0.3f, 0);
+        col.height = 1.5f;
+        col.radius = 0.6f;
+        col.center = new Vector3(0, -0.05f, 0);
         col.sharedMaterial = MakeSlippery();
 
-        var body = Part(boi, "Body", PrimitiveType.Cube, new Vector3(0, 0, 0), new Vector3(1f, 0.7f, 1.3f), MakeMat("Mat_BoiBody", new Color(1f, 0.62f, 0.2f)));
-        var head = Part(boi, "Head", PrimitiveType.Sphere, new Vector3(0, 0.7f, 0.15f), new Vector3(0.85f, 0.85f, 0.85f), MakeMat("Mat_BoiHead", new Color(0.95f, 0.5f, 0.12f)));
+        BuildCow(boi.transform);
+        BuildBull(boi.transform);
+        CreateFartParticles(boi);
 
-        var eyeMat = MakeMat("Mat_EyeWhite", Color.white);
-        var pupilMat = MakeMat("Mat_Pupil", Color.black);
-        Transform eyeL = Eye(head, "EyeLeft", new Vector3(-0.22f, 0.12f, 0.42f), eyeMat, pupilMat);
-        Transform eyeR = Eye(head, "EyeRight", new Vector3(0.22f, 0.12f, 0.42f), eyeMat, pupilMat);
-
-        // Patins: dois cubos escuros embaixo do corpo
-        var skateMat = MakeMat("Mat_Skate", new Color(0.2f, 0.2f, 0.25f));
-        Part(boi, "SkateL", PrimitiveType.Cube, new Vector3(-0.3f, -0.4f, 0), new Vector3(0.25f, 0.12f, 1.2f), skateMat);
-        Part(boi, "SkateR", PrimitiveType.Cube, new Vector3(0.3f, -0.4f, 0), new Vector3(0.25f, 0.12f, 1.2f), skateMat);
-
-        var ps = CreateFartParticles(boi);
-
-        var controller = boi.AddComponent<BoiController>();
-        var so = new SerializedObject(controller);
-        so.FindProperty("eyeLeft").objectReferenceValue = eyeL;
-        so.FindProperty("eyeRight").objectReferenceValue = eyeR;
-        so.FindProperty("fartParticles").objectReferenceValue = ps;
-        so.ApplyModifiedPropertiesWithoutUndo();
-
+        boi.AddComponent<BoiController>();
         return boi.transform;
     }
 
-    private static Transform Part(GameObject parent, string name, PrimitiveType type, Vector3 pos, Vector3 scale, Material mat)
+    private static Texture2D MakeSpotsTexture()
+    {
+        const string path = "Assets/Textures/CowSpots.png";
+        var existing = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        if (existing != null) return existing;
+
+        System.IO.Directory.CreateDirectory("Assets/Textures");
+        const int size = 512;
+        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        var white = new Color(0.97f, 0.96f, 0.92f);
+        var black = new Color(0.1f, 0.09f, 0.1f);
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float n = Mathf.PerlinNoise(x / (float)size * 4f + 3.1f, y / (float)size * 4f + 7.7f);
+                tex.SetPixel(x, y, n > 0.58f ? black : white);
+            }
+        tex.Apply();
+        System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
+        Object.DestroyImmediate(tex);
+        AssetDatabase.ImportAsset(path);
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
+    private static Material MakeTexturedMat(string name, Texture2D tex)
+    {
+        var mat = MakeMat(name, Color.white);
+        mat.mainTexture = tex;
+        EditorUtility.SetDirty(mat);
+        return mat;
+    }
+
+    private static void BuildCow(Transform root)
+    {
+        var visual = new GameObject("Visual_Vaca").transform;
+        visual.SetParent(root, false);
+
+        var fur = MakeTexturedMat("Mat_CowFur", MakeSpotsTexture());
+        var pink = MakeMat("Mat_Pink", new Color(1f, 0.55f, 0.6f));
+        var cream = MakeMat("Mat_Horn", new Color(0.95f, 0.88f, 0.7f));
+        var gold = MakeMat("Mat_Gold", new Color(1f, 0.8f, 0.15f));
+        var dark = MakeMat("Mat_Dark", new Color(0.15f, 0.08f, 0.08f));
+        var black = MakeMat("Mat_Black", new Color(0.1f, 0.09f, 0.1f));
+
+        Part(visual, "Body", PrimitiveType.Sphere, new Vector3(0, 0.1f, -0.05f), new Vector3(1.2f, 1.0f, 1.5f), fur);
+        Part(visual, "Udder", PrimitiveType.Sphere, new Vector3(0, -0.4f, -0.45f), new Vector3(0.45f, 0.3f, 0.45f), pink);
+
+        var head = Part(visual, "Head", PrimitiveType.Sphere, new Vector3(0, 0.6f, 0.8f), new Vector3(1.0f, 0.95f, 0.95f), fur);
+        Part(head, "Muzzle", PrimitiveType.Sphere, new Vector3(0, -0.2f, 0.4f), new Vector3(0.6f, 0.4f, 0.4f), pink);
+        Part(head, "NostrilL", PrimitiveType.Sphere, new Vector3(-0.1f, -0.2f, 0.58f), new Vector3(0.08f, 0.1f, 0.05f), dark);
+        Part(head, "NostrilR", PrimitiveType.Sphere, new Vector3(0.1f, -0.2f, 0.58f), new Vector3(0.08f, 0.1f, 0.05f), dark);
+        Part(head, "EarL", PrimitiveType.Sphere, new Vector3(-0.55f, 0.15f, -0.05f), new Vector3(0.38f, 0.2f, 0.28f), pink, new Vector3(0, 0, 25));
+        Part(head, "EarR", PrimitiveType.Sphere, new Vector3(0.55f, 0.15f, -0.05f), new Vector3(0.38f, 0.2f, 0.28f), pink, new Vector3(0, 0, -25));
+        Part(head, "HornL", PrimitiveType.Capsule, new Vector3(-0.28f, 0.5f, -0.05f), new Vector3(0.12f, 0.18f, 0.12f), cream, new Vector3(0, 0, 30));
+        Part(head, "HornR", PrimitiveType.Capsule, new Vector3(0.28f, 0.5f, -0.05f), new Vector3(0.12f, 0.18f, 0.12f), cream, new Vector3(0, 0, -30));
+        Eye(head, "EyeLeft", new Vector3(-0.22f, 0.15f, 0.4f), new Vector3(0.4f, 0.45f, 0.25f));
+        Eye(head, "EyeRight", new Vector3(0.22f, 0.15f, 0.4f), new Vector3(0.4f, 0.45f, 0.25f));
+        Part(visual, "Collar", PrimitiveType.Sphere, new Vector3(0, 0.25f, 0.6f), new Vector3(0.9f, 0.3f, 0.5f), MakeMat("Mat_RedCollar", new Color(0.85f, 0.1f, 0.15f)));
+        Part(visual, "Bell", PrimitiveType.Sphere, new Vector3(0, 0.05f, 0.8f), new Vector3(0.22f, 0.22f, 0.22f), gold);
+
+        Part(visual, "Tail", PrimitiveType.Capsule, new Vector3(0, 0.25f, -0.85f), new Vector3(0.07f, 0.3f, 0.07f), fur, new Vector3(-30, 0, 0));
+        Part(visual, "TailTuft", PrimitiveType.Sphere, new Vector3(0, 0.0f, -1.05f), new Vector3(0.22f, 0.3f, 0.22f), black);
+
+        Skates(visual, new Color(1f, 0.5f, 0.65f));
+    }
+
+    private static void BuildBull(Transform root)
+    {
+        var visual = new GameObject("Visual_Boi").transform;
+        visual.SetParent(root, false);
+
+        var fur = MakeMat("Mat_BullFur", new Color(0.42f, 0.22f, 0.12f));
+        var snout = MakeMat("Mat_BullSnout", new Color(0.85f, 0.55f, 0.4f));
+        var cream = MakeMat("Mat_Horn", new Color(0.95f, 0.88f, 0.7f));
+        var gold = MakeMat("Mat_Gold", new Color(1f, 0.8f, 0.15f));
+        var dark = MakeMat("Mat_Dark", new Color(0.15f, 0.08f, 0.08f));
+        var darkFur = MakeMat("Mat_BullDark", new Color(0.25f, 0.12f, 0.07f));
+
+        Part(visual, "Body", PrimitiveType.Sphere, new Vector3(0, 0.1f, -0.05f), new Vector3(1.3f, 1.1f, 1.6f), fur);
+        Part(visual, "Hump", PrimitiveType.Sphere, new Vector3(0, 0.6f, 0.25f), new Vector3(0.9f, 0.6f, 0.8f), fur);
+
+        var head = Part(visual, "Head", PrimitiveType.Sphere, new Vector3(0, 0.6f, 0.85f), new Vector3(1.05f, 1.0f, 1.0f), fur);
+        Part(head, "Muzzle", PrimitiveType.Sphere, new Vector3(0, -0.2f, 0.4f), new Vector3(0.65f, 0.42f, 0.42f), snout);
+        Part(head, "NostrilL", PrimitiveType.Sphere, new Vector3(-0.1f, -0.2f, 0.6f), new Vector3(0.08f, 0.1f, 0.05f), dark);
+        Part(head, "NostrilR", PrimitiveType.Sphere, new Vector3(0.1f, -0.2f, 0.6f), new Vector3(0.08f, 0.1f, 0.05f), dark);
+        Part(head, "NoseRing", PrimitiveType.Sphere, new Vector3(0, -0.4f, 0.55f), new Vector3(0.16f, 0.16f, 0.04f), gold);
+        Part(head, "EarL", PrimitiveType.Sphere, new Vector3(-0.58f, 0.1f, -0.05f), new Vector3(0.35f, 0.2f, 0.28f), darkFur, new Vector3(0, 0, 20));
+        Part(head, "EarR", PrimitiveType.Sphere, new Vector3(0.58f, 0.1f, -0.05f), new Vector3(0.35f, 0.2f, 0.28f), darkFur, new Vector3(0, 0, -20));
+        Part(head, "HornL", PrimitiveType.Capsule, new Vector3(-0.5f, 0.38f, -0.05f), new Vector3(0.2f, 0.3f, 0.2f), cream, new Vector3(0, 0, 65));
+        Part(head, "HornR", PrimitiveType.Capsule, new Vector3(0.5f, 0.38f, -0.05f), new Vector3(0.2f, 0.3f, 0.2f), cream, new Vector3(0, 0, -65));
+        Eye(head, "EyeLeft", new Vector3(-0.23f, 0.15f, 0.4f), new Vector3(0.4f, 0.45f, 0.25f));
+        Eye(head, "EyeRight", new Vector3(0.23f, 0.15f, 0.4f), new Vector3(0.4f, 0.45f, 0.25f));
+        Part(visual, "Collar", PrimitiveType.Sphere, new Vector3(0, 0.25f, 0.65f), new Vector3(1.0f, 0.3f, 0.5f), MakeMat("Mat_BlueCollar", new Color(0.15f, 0.4f, 0.9f)));
+        Part(visual, "Bell", PrimitiveType.Sphere, new Vector3(0, 0.05f, 0.85f), new Vector3(0.22f, 0.22f, 0.22f), gold);
+
+        Part(visual, "Tail", PrimitiveType.Capsule, new Vector3(0, 0.25f, -0.9f), new Vector3(0.07f, 0.3f, 0.07f), fur, new Vector3(-30, 0, 0));
+        Part(visual, "TailTuft", PrimitiveType.Sphere, new Vector3(0, 0.0f, -1.1f), new Vector3(0.22f, 0.3f, 0.22f), darkFur);
+
+        Skates(visual, new Color(0.2f, 0.45f, 0.95f));
+    }
+
+    private static void Skates(Transform visual, Color bootColor)
+    {
+        var boot = MakeMat("Mat_Boot_" + ColorUtility.ToHtmlStringRGB(bootColor), bootColor);
+        var wheel = MakeMat("Mat_Wheel", new Color(1f, 0.55f, 0.1f));
+        float[] xs = { -0.4f, 0.4f };
+        float[] zs = { -0.45f, 0.5f };
+        foreach (float x in xs)
+            foreach (float z in zs)
+            {
+                Part(visual, "Skate", PrimitiveType.Cube, new Vector3(x, -0.55f, z), new Vector3(0.32f, 0.2f, 0.45f), boot);
+                Part(visual, "WheelA", PrimitiveType.Cylinder, new Vector3(x, -0.65f, z - 0.15f), new Vector3(0.28f, 0.05f, 0.28f), wheel, new Vector3(0, 0, 90));
+                Part(visual, "WheelB", PrimitiveType.Cylinder, new Vector3(x, -0.65f, z + 0.15f), new Vector3(0.28f, 0.05f, 0.28f), wheel, new Vector3(0, 0, 90));
+            }
+    }
+
+    private static Transform Part(Transform parent, string name, PrimitiveType type, Vector3 pos, Vector3 scale, Material mat, Vector3? euler = null)
     {
         var go = GameObject.CreatePrimitive(type);
         go.name = name;
-        go.transform.SetParent(parent.transform, false);
+        go.transform.SetParent(parent, false);
         go.transform.localPosition = pos;
         go.transform.localScale = scale;
+        if (euler.HasValue) go.transform.localRotation = Quaternion.Euler(euler.Value);
         go.GetComponent<Renderer>().sharedMaterial = mat;
         Object.DestroyImmediate(go.GetComponent<Collider>());
         return go.transform;
     }
 
-    private static Transform Eye(Transform head, string name, Vector3 pos, Material eyeMat, Material pupilMat)
+    private static void Eye(Transform head, string name, Vector3 pos, Vector3 scale)
     {
-        var eye = Part(head.gameObject, name, PrimitiveType.Sphere, pos, new Vector3(0.32f, 0.32f, 0.22f), eyeMat);
-        Part(eye.gameObject, "Pupil", PrimitiveType.Sphere, new Vector3(0, 0, 0.4f), new Vector3(0.5f, 0.5f, 0.4f), pupilMat);
-        return eye;
+        var eye = Part(head, name, PrimitiveType.Sphere, pos, scale, MakeMat("Mat_EyeWhite", Color.white));
+        Part(eye, "Pupil", PrimitiveType.Sphere, new Vector3(0, -0.05f, 0.4f), new Vector3(0.45f, 0.45f, 0.4f), MakeMat("Mat_Pupil", Color.black));
     }
 
     private static ParticleSystem CreateFartParticles(GameObject boi)
     {
         var go = new GameObject("FartParticles");
         go.transform.SetParent(boi.transform, false);
-        go.transform.localPosition = new Vector3(0, 0.1f, -0.7f);
+        go.transform.localPosition = new Vector3(0, 0.1f, -1.0f);
         go.transform.localRotation = Quaternion.Euler(0, 180f, 0); // emite para tras
 
         var ps = go.AddComponent<ParticleSystem>();
@@ -214,7 +313,7 @@ public static class SceneSetup
         var go = new GameObject("GameManager");
         var gm = go.AddComponent<GameManager>();
         var so = new SerializedObject(gm);
-        so.FindProperty("boi").objectReferenceValue = boi.GetComponent<BoiController>();
+        so.FindProperty("player").objectReferenceValue = boi.GetComponent<BoiController>();
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 }

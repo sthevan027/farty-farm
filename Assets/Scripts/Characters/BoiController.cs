@@ -1,39 +1,43 @@
 using UnityEngine;
 
+public enum CharacterType { Vaca = 0, Boi = 1 }
+
 [RequireComponent(typeof(Rigidbody))]
 public class BoiController : MonoBehaviour
 {
-    [Header("Movimento")]
-    [SerializeField] private float acceleration = 22f;
-    [SerializeField] private float maxSpeed = 14f;
-    [Tooltip("Taxa de atrito horizontal por segundo (independente de FPS)")]
-    [SerializeField] private float friction = 1.2f;
-    [SerializeField] private float turnSpeed = 8f;
+    [Header("Direcao (WASD so gira o personagem)")]
+    [SerializeField] private float turnSpeed = 10f;
+
+    [Header("Movimento (so o peido move)")]
+    [Tooltip("Atrito horizontal por segundo (independente de FPS)")]
+    [SerializeField] private float friction = 0.8f;
+    [SerializeField] private float maxSpeed = 16f;
 
     [Header("Peido")]
-    [SerializeField] private float fartImpulse = 9f;
+    [SerializeField] private float fartImpulse = 10f;
     [SerializeField] private float gasCapacity = 100f;
-    [SerializeField] private float gasPerFart = 20f;
-    [SerializeField] private float gasRegenRate = 12f;
+    [SerializeField] private float gasPerFart = 15f;
+    [SerializeField] private float gasRegenRate = 15f;
     [SerializeField] private float fartCooldown = 0.3f;
 
-    [Header("Referencias (preenchidas pelo SceneSetup)")]
-    [SerializeField] private Transform eyeLeft;
-    [SerializeField] private Transform eyeRight;
+    [Header("Referencias")]
     [SerializeField] private ParticleSystem fartParticles;
 
     private Rigidbody rb;
     private Transform cam;
-    private Vector3 moveInput;
+    private Vector3 desiredFacing;
     private float currentGas;
     private float lastFartTime = -10f;
     private float noGasMessageTime = -10f;
-    private Vector3 eyeLeftBase;
-    private Vector3 eyeRightBase;
+    private Transform eyeLeft, eyeRight;
+    private Vector3 eyeLeftBase, eyeRightBase;
     private float eyeFactor = 1f;
 
+    public CharacterType Current { get; private set; } = CharacterType.Vaca;
     public float GasPercent => currentGas / gasCapacity;
     public float Speed => rb != null ? new Vector3(Vel.x, 0, Vel.z).magnitude : 0f;
+    public bool OutOfGas => currentGas < gasPerFart;
+    public float NoGasMessageTime => noGasMessageTime;
 
     private Vector3 Vel
     {
@@ -45,8 +49,6 @@ public class BoiController : MonoBehaviour
         set => rb.velocity = value;
 #endif
     }
-    public bool OutOfGas => currentGas < gasPerFart;
-    public float NoGasMessageTime => noGasMessageTime;
 
     private void Awake()
     {
@@ -54,16 +56,30 @@ public class BoiController : MonoBehaviour
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
         rb.interpolation = RigidbodyInterpolation.Interpolate;
         currentGas = gasCapacity;
+        desiredFacing = transform.forward;
+        if (fartParticles == null) fartParticles = GetComponentInChildren<ParticleSystem>();
+        SetCharacter(Current);
     }
 
     private void Start()
     {
         if (Camera.main != null) cam = Camera.main.transform;
-        if (eyeLeft == null) eyeLeft = transform.Find("Head/EyeLeft");
-        if (eyeRight == null) eyeRight = transform.Find("Head/EyeRight");
-        if (fartParticles == null) fartParticles = GetComponentInChildren<ParticleSystem>();
+    }
+
+    public void SetCharacter(CharacterType type)
+    {
+        Current = type;
+        Transform vaca = transform.Find("Visual_Vaca");
+        Transform boi = transform.Find("Visual_Boi");
+        if (vaca != null) vaca.gameObject.SetActive(type == CharacterType.Vaca);
+        if (boi != null) boi.gameObject.SetActive(type == CharacterType.Boi);
+
+        Transform active = type == CharacterType.Vaca ? vaca : boi;
+        eyeLeft = active != null ? active.Find("Head/EyeLeft") : null;
+        eyeRight = active != null ? active.Find("Head/EyeRight") : null;
         if (eyeLeft != null) eyeLeftBase = eyeLeft.localScale;
         if (eyeRight != null) eyeRightBase = eyeRight.localScale;
+        eyeFactor = 1f;
     }
 
     private void Update()
@@ -76,10 +92,9 @@ public class BoiController : MonoBehaviour
     {
         float dt = Time.fixedDeltaTime;
 
-        if (moveInput.sqrMagnitude > 0.01f)
+        if (desiredFacing.sqrMagnitude > 0.01f)
         {
-            rb.AddForce(moveInput * acceleration, ForceMode.Acceleration);
-            Quaternion target = Quaternion.LookRotation(moveInput, Vector3.up);
+            Quaternion target = Quaternion.LookRotation(desiredFacing, Vector3.up);
             rb.MoveRotation(Quaternion.Slerp(rb.rotation, target, turnSpeed * dt));
         }
 
@@ -97,15 +112,16 @@ public class BoiController : MonoBehaviour
         float x = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
         float z = (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
 
-        Vector3 forward = cam != null ? cam.forward : Vector3.forward;
-        Vector3 right = cam != null ? cam.right : Vector3.right;
-        forward.y = 0f;
-        right.y = 0f;
-        forward.Normalize();
-        right.Normalize();
-
-        moveInput = (forward * z + right * x);
-        if (moveInput.sqrMagnitude > 1f) moveInput.Normalize();
+        if (x != 0f || z != 0f)
+        {
+            Vector3 forward = cam != null ? cam.forward : Vector3.forward;
+            Vector3 right = cam != null ? cam.right : Vector3.right;
+            forward.y = 0f;
+            right.y = 0f;
+            forward.Normalize();
+            right.Normalize();
+            desiredFacing = (forward * z + right * x).normalized;
+        }
 
         if (Input.GetKeyDown(KeyCode.Space)) TryFart();
     }
@@ -120,7 +136,7 @@ public class BoiController : MonoBehaviour
             return;
         }
 
-        // O gas sai por tras; o impulso empurra o boi para a frente (acao e reacao).
+        // Gas sai por tras; o impulso empurra para a frente (para onde o personagem olha).
         Vector3 forward = transform.forward;
         forward.y = 0f;
         rb.AddForce(forward.normalized * fartImpulse, ForceMode.Impulse);
@@ -134,7 +150,7 @@ public class BoiController : MonoBehaviour
     private void UpdateEyes()
     {
         float target = 1f;
-        if (Time.time - lastFartTime < 0.25f) target = 1.8f;
+        if (Time.time - lastFartTime < 0.25f) target = 1.6f;
         else if (OutOfGas) target = 0.8f;
 
         eyeFactor = Mathf.Lerp(eyeFactor, target, 15f * Time.deltaTime);
