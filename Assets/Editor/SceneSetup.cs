@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -7,13 +8,18 @@ public static class SceneSetup
 {
     private const string ScenePath = "Assets/Scenes/Arena.unity";
     private const string MatFolder = "Assets/Materials";
+    private const string VersionKey = "FartyFarm.SceneVersion";
+    private const int SceneVersion = 2;
+    private const float ArenaHalf = 40f;
+    private const int TreeCount = 110;
 
     static SceneSetup()
     {
         EditorApplication.delayCall += () =>
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode) return;
-            if (!System.IO.File.Exists(ScenePath)) CreateArenaScene(true);
+            if (!System.IO.File.Exists(ScenePath) || EditorPrefs.GetInt(VersionKey, 0) < SceneVersion)
+                CreateArenaScene(true);
         };
     }
 
@@ -37,16 +43,21 @@ public static class SceneSetup
 
         CreateGround();
         CreateWalls();
-        Transform boi = CreateBoi();
-        SetupCamera(boi);
-        CreateGameManager(boi);
+        CreateForest();
+        CreateCharacter(CharacterType.Boi, new Vector3(-3f, 0.9f, 0f));
+        Transform vaca = CreateCharacter(CharacterType.Vaca, new Vector3(3f, 0.9f, 0f));
+        SetupCamera(vaca);
+        new GameObject("GameManager").AddComponent<GameManager>();
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
+        EditorPrefs.SetInt(VersionKey, SceneVersion);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        Debug.Log("[Farty Farm] Arena criada em " + ScenePath + (auto ? " (automatico na primeira abertura)." : "."));
+        Debug.Log("[Farty Farm] Arena criada em " + ScenePath + (auto ? " (automatico)." : "."));
     }
+
+    // ---------- materiais ----------
 
     private static Material MakeMat(string name, Color color, string shader = "Standard")
     {
@@ -56,6 +67,12 @@ public static class SceneSetup
         var mat = new Material(Shader.Find(shader)) { color = color };
         AssetDatabase.CreateAsset(mat, path);
         return mat;
+    }
+
+    private static Material ParticleMat()
+    {
+        var builtin = AssetDatabase.GetBuiltinExtraResource<Material>("Default-ParticleSystem.mat");
+        return builtin != null ? builtin : MakeMat("Mat_Particle", Color.white, "Sprites/Default");
     }
 
     private static PhysicsMaterial MakeSlippery()
@@ -74,11 +91,14 @@ public static class SceneSetup
         return pm;
     }
 
+    // ---------- arena ----------
+
     private static void CreateGround()
     {
         var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
         ground.name = "Ground";
-        ground.transform.localScale = new Vector3(2f, 1f, 2f); // Plane base = 10x10 -> arena 20x20
+        float s = ArenaHalf * 2f / 10f; // Plane base = 10x10
+        ground.transform.localScale = new Vector3(s, 1f, s);
         ground.GetComponent<Renderer>().sharedMaterial = MakeMat("Mat_Grass", new Color(0.35f, 0.8f, 0.3f));
         ground.GetComponent<Collider>().sharedMaterial = MakeSlippery();
     }
@@ -87,10 +107,12 @@ public static class SceneSetup
     {
         var mat = MakeMat("Mat_Wall", new Color(0.6f, 0.45f, 0.3f));
         var slippery = MakeSlippery();
-        MakeWall("Wall_Front", new Vector3(0, 1f, 10.5f), new Vector3(22, 2, 1), mat, slippery);
-        MakeWall("Wall_Back", new Vector3(0, 1f, -10.5f), new Vector3(22, 2, 1), mat, slippery);
-        MakeWall("Wall_Left", new Vector3(-10.5f, 1f, 0), new Vector3(1, 2, 22), mat, slippery);
-        MakeWall("Wall_Right", new Vector3(10.5f, 1f, 0), new Vector3(1, 2, 22), mat, slippery);
+        float len = ArenaHalf * 2f + 2f;
+        float off = ArenaHalf + 0.5f;
+        MakeWall("Wall_Front", new Vector3(0, 1f, off), new Vector3(len, 2, 1), mat, slippery);
+        MakeWall("Wall_Back", new Vector3(0, 1f, -off), new Vector3(len, 2, 1), mat, slippery);
+        MakeWall("Wall_Left", new Vector3(-off, 1f, 0), new Vector3(1, 2, len), mat, slippery);
+        MakeWall("Wall_Right", new Vector3(off, 1f, 0), new Vector3(1, 2, len), mat, slippery);
     }
 
     private static void MakeWall(string name, Vector3 pos, Vector3 scale, Material mat, PhysicsMaterial pm)
@@ -103,28 +125,209 @@ public static class SceneSetup
         wall.GetComponent<Collider>().sharedMaterial = pm;
     }
 
-    private static Transform CreateBoi()
-    {
-        var boi = new GameObject("Boi");
-        boi.transform.position = new Vector3(0, 0.9f, 0);
+    // ---------- floresta ----------
 
-        var rb = boi.AddComponent<Rigidbody>();
+    private static void CreateForest()
+    {
+        var forest = new GameObject("Forest").transform;
+        var trunk = MakeMat("Mat_Trunk", new Color(0.4f, 0.25f, 0.12f));
+        var leaves = MakeMat("Mat_Leaves", new Color(0.18f, 0.62f, 0.2f));
+        var burnt = MakeMat("Mat_BurntLeaves", new Color(0.12f, 0.1f, 0.1f));
+        var fireMat = ParticleMat();
+
+        var placed = new List<Vector2>();
+        // Arvores de teste perto dos personagens
+        Vector2[] testSpots = { new Vector2(-7, 4), new Vector2(-6, -5), new Vector2(7, 4), new Vector2(8, -4), new Vector2(0, 9) };
+        foreach (Vector2 p in testSpots)
+        {
+            MakeTree(forest, p, 1f, trunk, leaves, burnt, fireMat);
+            placed.Add(p);
+        }
+
+        var rng = new System.Random(1234);
+        int attempts = 0;
+        while (placed.Count < TreeCount && attempts++ < 8000)
+        {
+            float x = (float)(rng.NextDouble() * 2.0 - 1.0) * (ArenaHalf - 3f);
+            float z = (float)(rng.NextDouble() * 2.0 - 1.0) * (ArenaHalf - 3f);
+            var p = new Vector2(x, z);
+            if (p.magnitude < 6f) continue;
+
+            bool free = true;
+            foreach (Vector2 q in placed)
+                if ((q - p).sqrMagnitude < 3.5f * 3.5f) { free = false; break; }
+            if (!free) continue;
+
+            float scale = 0.9f + (float)rng.NextDouble() * 0.4f;
+            MakeTree(forest, p, scale, trunk, leaves, burnt, fireMat);
+            placed.Add(p);
+        }
+    }
+
+    private static void MakeTree(Transform parent, Vector2 pos, float scale, Material trunk, Material leaves, Material burnt, Material fireMat)
+    {
+        var root = new GameObject("Tree");
+        root.transform.SetParent(parent, false);
+        root.transform.position = new Vector3(pos.x, 0f, pos.y);
+        root.transform.localScale = Vector3.one * scale;
+
+        var col = root.AddComponent<CapsuleCollider>();
+        col.height = 1.8f;
+        col.radius = 0.28f;
+        col.center = new Vector3(0, 0.9f, 0);
+
+        Part(root.transform, "Trunk", PrimitiveType.Cylinder, new Vector3(0, 0.8f, 0), new Vector3(0.4f, 0.8f, 0.4f), trunk);
+        var f1 = Part(root.transform, "Foliage1", PrimitiveType.Sphere, new Vector3(0, 2.2f, 0), new Vector3(2.0f, 1.8f, 2.0f), leaves);
+        var f2 = Part(root.transform, "Foliage2", PrimitiveType.Sphere, new Vector3(0, 3.1f, 0), new Vector3(1.5f, 1.4f, 1.5f), leaves);
+
+        var fireGO = new GameObject("Fire");
+        fireGO.transform.SetParent(root.transform, false);
+        fireGO.transform.localPosition = new Vector3(0, 2.4f, 0);
+        var ps = fireGO.AddComponent<ParticleSystem>();
+        ConfigureFire(ps, fireMat);
+
+        var tree = root.AddComponent<FlammableTree>();
+        var so = new SerializedObject(tree);
+        so.FindProperty("fire").objectReferenceValue = ps;
+        so.FindProperty("burntMaterial").objectReferenceValue = burnt;
+        var foliage = so.FindProperty("foliage");
+        foliage.arraySize = 2;
+        foliage.GetArrayElementAtIndex(0).objectReferenceValue = f1.GetComponent<Renderer>();
+        foliage.GetArrayElementAtIndex(1).objectReferenceValue = f2.GetComponent<Renderer>();
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void ConfigureFire(ParticleSystem ps, Material mat)
+    {
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        var main = ps.main;
+        main.playOnAwake = false;
+        main.loop = true;
+        main.duration = 1f;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.7f, 1.1f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(0.5f, 1.5f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.8f, 1.4f);
+        main.startColor = new Color(1f, 0.6f, 0.15f, 0.9f);
+        main.gravityModifier = -0.3f;
+
+        var emission = ps.emission;
+        emission.rateOverTime = 30f;
+
+        var shape = ps.shape;
+        shape.shapeType = ParticleSystemShapeType.Sphere;
+        shape.radius = 0.8f;
+
+        var colorLife = ps.colorOverLifetime;
+        colorLife.enabled = true;
+        var g = new Gradient();
+        g.SetKeys(
+            new[]
+            {
+                new GradientColorKey(new Color(1f, 0.9f, 0.3f), 0f),
+                new GradientColorKey(new Color(1f, 0.4f, 0.1f), 0.5f),
+                new GradientColorKey(new Color(0.2f, 0.2f, 0.2f), 1f)
+            },
+            new[]
+            {
+                new GradientAlphaKey(0.9f, 0f),
+                new GradientAlphaKey(0.7f, 0.5f),
+                new GradientAlphaKey(0f, 1f)
+            });
+        colorLife.color = g;
+
+        var sizeLife = ps.sizeOverLifetime;
+        sizeLife.enabled = true;
+        sizeLife.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0, 1f, 1, 0.3f));
+
+        ps.GetComponent<ParticleSystemRenderer>().sharedMaterial = mat;
+    }
+
+    // ---------- personagens ----------
+
+    private static Transform CreateCharacter(CharacterType type, Vector3 pos)
+    {
+        var go = new GameObject(type == CharacterType.Vaca ? "Vaca" : "Boi");
+        go.transform.position = pos;
+
+        var rb = go.AddComponent<Rigidbody>();
         rb.mass = 1f;
         rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
 
-        var col = boi.AddComponent<CapsuleCollider>();
+        var col = go.AddComponent<CapsuleCollider>();
         col.height = 1.5f;
         col.radius = 0.6f;
         col.center = new Vector3(0, -0.05f, 0);
         col.sharedMaterial = MakeSlippery();
 
-        BuildCow(boi.transform);
-        BuildBull(boi.transform);
-        CreateFartParticles(boi);
-
-        boi.AddComponent<BoiController>();
-        return boi.transform;
+        var particleMat = ParticleMat();
+        if (type == CharacterType.Vaca)
+        {
+            BuildCow(go.transform);
+            var milk = CreateBurstParticles(go.transform, "MilkParticles", new Vector3(0, 0.35f, 1.35f), new Vector3(-8f, 0, 0),
+                new Color(1f, 1f, 1f, 0.95f), 35, 5f, 0.55f, 1.0f, 12f, new Vector2(0.15f, 0.3f), particleMat);
+            var vaca = go.AddComponent<VacaController>();
+            var so = new SerializedObject(vaca);
+            so.FindProperty("milkParticles").objectReferenceValue = milk;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+        else
+        {
+            BuildBull(go.transform);
+            var flame = CreateBurstParticles(go.transform, "FartParticles", new Vector3(0, 0.1f, -1.0f), new Vector3(0, 180f, 0),
+                new Color(1f, 0.55f, 0.1f, 0.9f), 22, 2.5f, 0.7f, -0.05f, 25f, new Vector2(0.4f, 0.8f), particleMat);
+            var boi = go.AddComponent<BoiController>();
+            var so = new SerializedObject(boi);
+            so.FindProperty("fartParticles").objectReferenceValue = flame;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+        return go.transform;
     }
+
+    private static ParticleSystem CreateBurstParticles(Transform parent, string name, Vector3 localPos, Vector3 euler,
+        Color color, int count, float speed, float lifetime, float gravity, float coneAngle, Vector2 size, Material mat)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = localPos;
+        go.transform.localRotation = Quaternion.Euler(euler);
+
+        var ps = go.AddComponent<ParticleSystem>();
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        var main = ps.main;
+        main.playOnAwake = false;
+        main.loop = false;
+        main.duration = 0.5f;
+        main.startLifetime = lifetime;
+        main.startSpeed = speed;
+        main.startSize = new ParticleSystem.MinMaxCurve(size.x, size.y);
+        main.startColor = color;
+        main.gravityModifier = gravity;
+
+        var emission = ps.emission;
+        emission.rateOverTime = 0f;
+        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)count) });
+
+        var shape = ps.shape;
+        shape.shapeType = ParticleSystemShapeType.Cone;
+        shape.angle = coneAngle;
+        shape.radius = 0.1f;
+
+        go.GetComponent<ParticleSystemRenderer>().sharedMaterial = mat;
+        return ps;
+    }
+
+    private static void SetupCamera(Transform target)
+    {
+        var camGO = Camera.main != null ? Camera.main.gameObject : new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
+        camGO.tag = "MainCamera";
+        var cam = camGO.GetComponent<TopDownCamera>() ?? camGO.AddComponent<TopDownCamera>();
+        cam.target = target;
+        EditorUtility.SetDirty(cam);
+    }
+
+    // ---------- modelos ----------
 
     private static Texture2D MakeSpotsTexture()
     {
@@ -160,7 +363,7 @@ public static class SceneSetup
 
     private static void BuildCow(Transform root)
     {
-        var visual = new GameObject("Visual_Vaca").transform;
+        var visual = new GameObject("Visual").transform;
         visual.SetParent(root, false);
 
         var fur = MakeTexturedMat("Mat_CowFur", MakeSpotsTexture());
@@ -194,7 +397,7 @@ public static class SceneSetup
 
     private static void BuildBull(Transform root)
     {
-        var visual = new GameObject("Visual_Boi").transform;
+        var visual = new GameObject("Visual").transform;
         visual.SetParent(root, false);
 
         var fur = MakeMat("Mat_BullFur", new Color(0.42f, 0.22f, 0.12f));
@@ -259,61 +462,5 @@ public static class SceneSetup
     {
         var eye = Part(head, name, PrimitiveType.Sphere, pos, scale, MakeMat("Mat_EyeWhite", Color.white));
         Part(eye, "Pupil", PrimitiveType.Sphere, new Vector3(0, -0.05f, 0.4f), new Vector3(0.45f, 0.45f, 0.4f), MakeMat("Mat_Pupil", Color.black));
-    }
-
-    private static ParticleSystem CreateFartParticles(GameObject boi)
-    {
-        var go = new GameObject("FartParticles");
-        go.transform.SetParent(boi.transform, false);
-        go.transform.localPosition = new Vector3(0, 0.1f, -1.0f);
-        go.transform.localRotation = Quaternion.Euler(0, 180f, 0); // emite para tras
-
-        var ps = go.AddComponent<ParticleSystem>();
-        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-
-        var main = ps.main;
-        main.playOnAwake = false;
-        main.loop = false;
-        main.duration = 0.5f;
-        main.startLifetime = 0.9f;
-        main.startSpeed = 3f;
-        main.startSize = new ParticleSystem.MinMaxCurve(0.4f, 0.8f);
-        main.startColor = new Color(0.75f, 0.85f, 0.4f, 0.8f);
-        main.gravityModifier = -0.1f;
-
-        var emission = ps.emission;
-        emission.rateOverTime = 0f;
-        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 18) });
-
-        var shape = ps.shape;
-        shape.shapeType = ParticleSystemShapeType.Cone;
-        shape.angle = 25f;
-        shape.radius = 0.1f;
-
-        var sizeOverLife = ps.sizeOverLifetime;
-        sizeOverLife.enabled = true;
-        sizeOverLife.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0, 0.5f, 1, 1.6f));
-
-        var renderer = go.GetComponent<ParticleSystemRenderer>();
-        renderer.sharedMaterial = MakeMat("Mat_Fart", Color.white, "Sprites/Default");
-        return ps;
-    }
-
-    private static void SetupCamera(Transform boi)
-    {
-        var camGO = Camera.main != null ? Camera.main.gameObject : new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
-        camGO.tag = "MainCamera";
-        var cam = camGO.GetComponent<TopDownCamera>() ?? camGO.AddComponent<TopDownCamera>();
-        cam.target = boi;
-        EditorUtility.SetDirty(cam);
-    }
-
-    private static void CreateGameManager(Transform boi)
-    {
-        var go = new GameObject("GameManager");
-        var gm = go.AddComponent<GameManager>();
-        var so = new SerializedObject(gm);
-        so.FindProperty("player").objectReferenceValue = boi.GetComponent<BoiController>();
-        so.ApplyModifiedPropertiesWithoutUndo();
     }
 }
