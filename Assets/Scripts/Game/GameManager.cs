@@ -10,7 +10,7 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
-        if (boi == null) boi = FindObjectOfType<BoiController>();
+        if (boi == null) boi = FindFirstObjectByType<BoiController>();
         white = new Texture2D(1, 1);
         white.SetPixel(0, 0, Color.white);
         white.Apply();

@@ -58,16 +58,16 @@ public static class SceneSetup
         return mat;
     }
 
-    private static PhysicMaterial MakeSlippery()
+    private static PhysicsMaterial MakeSlippery()
     {
-        string path = MatFolder + "/Slippery.physicMaterial";
-        var existing = AssetDatabase.LoadAssetAtPath<PhysicMaterial>(path);
+        string path = MatFolder + "/Slippery.physicsMaterial";
+        var existing = AssetDatabase.LoadAssetAtPath<PhysicsMaterial>(path);
         if (existing != null) return existing;
-        var pm = new PhysicMaterial("Slippery")
+        var pm = new PhysicsMaterial("Slippery")
         {
             dynamicFriction = 0f,
             staticFriction = 0f,
-            frictionCombine = PhysicMaterialCombine.Minimum,
+            frictionCombine = PhysicsMaterialCombine.Minimum,
             bounciness = 0.1f
         };
         AssetDatabase.CreateAsset(pm, path);
@@ -93,7 +93,7 @@ public static class SceneSetup
         MakeWall("Wall_Right", new Vector3(10.5f, 1f, 0), new Vector3(1, 2, 22), mat, slippery);
     }
 
-    private static void MakeWall(string name, Vector3 pos, Vector3 scale, Material mat, PhysicMaterial pm)
+    private static void MakeWall(string name, Vector3 pos, Vector3 scale, Material mat, PhysicsMaterial pm)
     {
         var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
         wall.name = name;
@@ -110,8 +110,6 @@ public static class SceneSetup
 
         var rb = boi.AddComponent<Rigidbody>();
         rb.mass = 1f;
-        rb.drag = 0f;
-        rb.angularDrag = 0.05f;
         rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
 
         var col = boi.AddComponent<CapsuleCollider>();

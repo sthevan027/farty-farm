@@ -33,7 +33,18 @@ public class BoiController : MonoBehaviour
     private float eyeFactor = 1f;
 
     public float GasPercent => currentGas / gasCapacity;
-    public float Speed => rb != null ? new Vector3(rb.velocity.x, 0, rb.velocity.z).magnitude : 0f;
+    public float Speed => rb != null ? new Vector3(Vel.x, 0, Vel.z).magnitude : 0f;
+
+    private Vector3 Vel
+    {
+#if UNITY_6000_0_OR_NEWER
+        get => rb.linearVelocity;
+        set => rb.linearVelocity = value;
+#else
+        get => rb.velocity;
+        set => rb.velocity = value;
+#endif
+    }
     public bool OutOfGas => currentGas < gasPerFart;
     public float NoGasMessageTime => noGasMessageTime;
 
@@ -72,11 +83,11 @@ public class BoiController : MonoBehaviour
             rb.MoveRotation(Quaternion.Slerp(rb.rotation, target, turnSpeed * dt));
         }
 
-        Vector3 v = rb.velocity;
+        Vector3 v = Vel;
         Vector3 horizontal = new Vector3(v.x, 0f, v.z);
         horizontal *= Mathf.Exp(-friction * dt);
         if (horizontal.magnitude > maxSpeed) horizontal = horizontal.normalized * maxSpeed;
-        rb.velocity = new Vector3(horizontal.x, v.y, horizontal.z);
+        Vel = new Vector3(horizontal.x, v.y, horizontal.z);
 
         currentGas = Mathf.Min(gasCapacity, currentGas + gasRegenRate * dt);
     }

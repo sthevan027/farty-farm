@@ -15,7 +15,7 @@ public class TopDownCamera : MonoBehaviour
     {
         if (target == null)
         {
-            BoiController boi = FindObjectOfType<BoiController>();
+            BoiController boi = FindFirstObjectByType<BoiController>();
             if (boi != null) target = boi.transform;
         }
         if (target != null) transform.position = DesiredPosition();
