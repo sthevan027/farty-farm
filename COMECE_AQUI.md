@@ -1,6 +1,6 @@
 # 🎮 Farty Farm — Comece Aqui
 
-Jogo 3D multiplayer LAN em Unity 2022 LTS — Etapa 1 Completa
+Jogo 3D multiplayer LAN em Unity 6 — veja **NOVIDADES.md** para a versão atual
 
 ---
 
@@ -38,7 +38,7 @@ Jogo 3D multiplayer LAN em Unity 2022 LTS — Etapa 1 Completa
 1. Pressione **Play** (Ctrl+P)
 2. Use:
    - **WASD** — Mover
-   - **Espaço** — Peido (impulso)
+   - **Espaço (segurar)** — Peido contínuo (boi) / Leite (vaca)
    - **ESC** — Sair
 
 3. Veja no canto superior:

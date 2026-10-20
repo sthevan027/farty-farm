@@ -2,12 +2,14 @@ using UnityEngine;
 
 public class GameManager : MonoBehaviour
 {
+    public static bool Playing { get; private set; }
+
     private enum State { Selecting, Playing }
     private State state = State.Selecting;
 
     private BoiController boi;
     private VacaController vaca;
-    private TopDownCamera topCamera;
+    private ThirdPersonCamera topCamera;
     private CharacterBase player;
     private CharacterType chosen = CharacterType.Vaca;
 
@@ -16,9 +18,10 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
+        Playing = false;
         boi = FindFirstObjectByType<BoiController>();
         vaca = FindFirstObjectByType<VacaController>();
-        topCamera = FindFirstObjectByType<TopDownCamera>();
+        topCamera = FindFirstObjectByType<ThirdPersonCamera>();
 
         white = new Texture2D(1, 1);
         white.SetPixel(0, 0, Color.white);
@@ -58,6 +61,8 @@ public class GameManager : MonoBehaviour
     private void StartPlaying()
     {
         state = State.Playing;
+        Playing = true;
+        if (topCamera != null) topCamera.BeginChase();
         if (boi != null)
         {
             boi.SetPlayer(chosen == CharacterType.Boi);
@@ -106,7 +111,7 @@ public class GameManager : MonoBehaviour
         GUI.color = Color.white;
 
         string role = isVaca ? "Vaca: anda com WASD e solta leite (Espaco) para apagar o fogo."
-                             : "Boi: WASD gira, Espaco peida e se move. Cuidado com o fogo!";
+                             : "Boi: WASD gira, SEGURE Espaco para peidar e se mover. Cuidado com o fogo!";
         GUI.Label(new Rect(0, h * 0.06f + 105, w, 30), role, centerStyle);
         GUI.Label(new Rect(0, h - 28, w, 28), "A / D = trocar | Enter = jogar", centerStyle);
     }
@@ -127,6 +132,7 @@ public class GameManager : MonoBehaviour
         GUI.Label(new Rect(20, 112, 600, 30), "Incendios ativos: " + FlammableTree.ActiveFires, labelStyle);
         GUI.Label(new Rect(20, 140, 600, 30), "Arvores queimadas: " + FlammableTree.BurntCount, labelStyle);
         GUI.Label(new Rect(20, 168, 600, 30), "Incendios apagados: " + FlammableTree.ExtinguishedCount, labelStyle);
+        GUI.Label(new Rect(20, 196, 600, 30), "Moedas: " + CollectibleManager.Score + "  (restam " + Collectible.All.Count + ")", labelStyle);
 
         if (Time.time - player.NoGasMessageTime < 1f)
             GUI.Label(new Rect(0, Screen.height * 0.3f, Screen.width, 40),
@@ -134,7 +140,7 @@ public class GameManager : MonoBehaviour
 
         string hint = chosen == CharacterType.Vaca
             ? "WASD = andar | Espaco = leite (apaga fogo) | Esc = sair"
-            : "WASD = direcao | Espaco = peido (move e incendeia) | Esc = sair";
+            : "WASD = direcao | SEGURE Espaco = peido (move e incendeia) | Esc = sair";
         GUI.Label(new Rect(0, Screen.height - 50, Screen.width, 40), hint, centerStyle);
     }
 }

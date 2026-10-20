@@ -9,7 +9,14 @@ public abstract class CharacterBase : MonoBehaviour
     [SerializeField] protected float gasCapacity = 100f;
     [SerializeField] protected float gasCost = 25f;
     [SerializeField] protected float gasRegenRate = 15f;
+    [Tooltip("Tempo sem gastar gas antes de comecar a regenerar")]
+    [SerializeField] protected float gasRegenDelay = 0.4f;
     [SerializeField] protected float actionCooldown = 0.3f;
+
+    [Header("Giro com inercia (gelo)")]
+    [Tooltip("Giro (graus/s) ganho ao bater em algo")]
+    [SerializeField] protected float bumpSpin = 200f;
+    [SerializeField] protected float maxYawSpeed = 520f;
 
     [SerializeField] private bool isPlayer;
 
@@ -18,10 +25,13 @@ public abstract class CharacterBase : MonoBehaviour
 
     private float currentGas;
     private float lastActionTime = -10f;
+    private float lastGasUseTime = -10f;
     private float noGasMessageTime = -10f;
     private Transform eyeLeft, eyeRight;
     private Vector3 eyeLeftBase, eyeRightBase;
     private float eyeFactor = 1f;
+    private float yaw;
+    private float yawVel;
 
     public bool IsPlayer => isPlayer;
     public float GasPercent => currentGas / gasCapacity;
@@ -34,6 +44,23 @@ public abstract class CharacterBase : MonoBehaviour
             Vector3 v = Vel;
             return new Vector3(v.x, 0f, v.z).magnitude;
         }
+    }
+
+    protected float CurrentGas => currentGas;
+
+    /// <summary>Velocidade ao longo da frente do personagem (negativa = de re).</summary>
+    public float ForwardSpeed
+    {
+        get
+        {
+            Vector3 v = Vel;
+            return Vector3.Dot(new Vector3(v.x, 0f, v.z), transform.forward);
+        }
+    }
+
+    public void RefillGas(float amount)
+    {
+        currentGas = Mathf.Min(gasCapacity, currentGas + amount);
     }
 
     protected Vector3 Vel
@@ -65,6 +92,36 @@ public abstract class CharacterBase : MonoBehaviour
         if (eyeRight != null) eyeRightBase = eyeRight.localScale;
     }
 
+    protected virtual void OnEnable()
+    {
+        yaw = transform.eulerAngles.y;
+        yawVel = 0f;
+    }
+
+    protected virtual void OnCollisionEnter(Collision collision)
+    {
+        // bateu forte: o personagem rodopia (descontrole)
+        if (collision.relativeVelocity.magnitude > 3f)
+            yawVel += Random.Range(-1f, 1f) * bumpSpin;
+    }
+
+    /// <summary>
+    /// Gira em direcao a "desired" como uma mola com pouco amortecimento:
+    /// passa do ponto, balanca, e continua girando um pouco (efeito gelo).
+    /// </summary>
+    protected void Steer(Vector3 desired, float spring, float damping, float dt, float extraTorque = 0f)
+    {
+        float acc = -damping * yawVel + extraTorque;
+        if (desired.sqrMagnitude > 0.01f)
+        {
+            float target = Mathf.Atan2(desired.x, desired.z) * Mathf.Rad2Deg;
+            acc += spring * Mathf.DeltaAngle(yaw, target);
+        }
+        yawVel = Mathf.Clamp(yawVel + acc * dt, -maxYawSpeed, maxYawSpeed);
+        yaw += yawVel * dt;
+        rb.MoveRotation(Quaternion.Euler(0f, yaw, 0f));
+    }
+
     protected virtual void Start()
     {
         if (Camera.main != null) cam = Camera.main.transform;
@@ -79,12 +136,14 @@ public abstract class CharacterBase : MonoBehaviour
 
     protected virtual void FixedUpdate()
     {
-        currentGas = Mathf.Min(gasCapacity, currentGas + gasRegenRate * Time.fixedDeltaTime);
+        if (Time.time - lastGasUseTime >= gasRegenDelay)
+            currentGas = Mathf.Min(gasCapacity, currentGas + gasRegenRate * Time.fixedDeltaTime);
     }
 
     protected abstract void PlayerInput();
     protected abstract void AIStep();
 
+    /// <summary>Gasta um bloco de gas de uma vez (acao de clique unico, ex.: leite).</summary>
     protected bool TrySpendGas()
     {
         if (Time.time - lastActionTime < actionCooldown) return false;
@@ -95,7 +154,22 @@ public abstract class CharacterBase : MonoBehaviour
         }
         currentGas -= gasCost;
         lastActionTime = Time.time;
+        lastGasUseTime = Time.time;
         return true;
+    }
+
+    /// <summary>Gasta gas continuamente (acao de segurar, ex.: peido). Retorna false quando acabou.</summary>
+    protected bool DrainGas(float amount)
+    {
+        currentGas = Mathf.Max(0f, currentGas - amount);
+        lastGasUseTime = Time.time;
+        lastActionTime = Time.time;
+        return currentGas > 0f;
+    }
+
+    protected void NotifyNoGas()
+    {
+        noGasMessageTime = Time.time;
     }
 
     protected Vector3 FlatForward()

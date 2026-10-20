@@ -22,6 +22,8 @@ public class FlammableTree : MonoBehaviour
     [SerializeField] private ParticleSystem fire;
     [SerializeField] private Renderer[] foliage;
     [SerializeField] private Material burntMaterial;
+    [SerializeField] private Renderer[] trunk;
+    [SerializeField] private Material burntTrunkMaterial;
 
     private TreeState state = TreeState.Healthy;
     private float fireHealth;
@@ -49,6 +51,8 @@ public class FlammableTree : MonoBehaviour
     {
         All.Remove(this);
     }
+
+    public bool IsBurning => state == TreeState.Burning;
 
     public static FlammableTree FindNearestBurning(Vector3 from)
     {
@@ -129,7 +133,9 @@ public class FlammableTree : MonoBehaviour
         ActiveFires--;
         BurntCount++;
         if (fire != null) fire.Stop(true, ParticleSystemStopBehavior.StopEmitting);
-        if (burntMaterial != null)
-            foreach (Renderer r in foliage) r.sharedMaterial = burntMaterial;
+        if (burntMaterial != null && foliage != null)
+            foreach (Renderer r in foliage) if (r != null) r.sharedMaterial = burntMaterial;
+        if (burntTrunkMaterial != null && trunk != null)
+            foreach (Renderer r in trunk) if (r != null) r.sharedMaterial = burntTrunkMaterial;
     }
 }
