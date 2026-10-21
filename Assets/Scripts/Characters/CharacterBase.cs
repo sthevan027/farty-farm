@@ -20,6 +20,12 @@ public abstract class CharacterBase : MonoBehaviour
 
     [SerializeField] private bool isPlayer;
 
+    // Esquema de teclas (permite 2 jogadores locais no mesmo teclado: P1=WASD/Espaco,
+    // P2=Setas/Enter). Ver SetInputScheme(). Time (0/1) usado so no modo Multi p/ placar.
+    protected KeyCode keyUp = KeyCode.W, keyDown = KeyCode.S, keyLeft = KeyCode.A, keyRight = KeyCode.D;
+    protected KeyCode keyAction = KeyCode.Space;
+    private int team;
+
     protected Rigidbody rb;
     protected Transform cam;
 
@@ -77,6 +83,19 @@ public abstract class CharacterBase : MonoBehaviour
     public void SetPlayer(bool value)
     {
         isPlayer = value;
+    }
+
+    /// <summary>Time no modo Multi (0 ou 1); so afeta o placar (CollectibleManager.ScoreA/ScoreB).</summary>
+    public int Team => team;
+    public void SetTeam(int value) => team = value;
+
+    /// <summary>
+    /// Troca as teclas de controle deste personagem (p/ 2 jogadores locais no mesmo PC,
+    /// usado como placeholder nos modos Dupla/Multi ate o multiplayer em rede existir).
+    /// </summary>
+    public void SetInputScheme(KeyCode up, KeyCode down, KeyCode left, KeyCode right, KeyCode action)
+    {
+        keyUp = up; keyDown = down; keyLeft = left; keyRight = right; keyAction = action;
     }
 
     protected virtual void Awake()
@@ -181,8 +200,8 @@ public abstract class CharacterBase : MonoBehaviour
 
     protected bool ReadWASD(out Vector3 dir)
     {
-        float x = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
-        float z = (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
+        float x = (Input.GetKey(keyRight) ? 1f : 0f) - (Input.GetKey(keyLeft) ? 1f : 0f);
+        float z = (Input.GetKey(keyUp) ? 1f : 0f) - (Input.GetKey(keyDown) ? 1f : 0f);
         dir = Vector3.zero;
         if (x == 0f && z == 0f) return false;
 

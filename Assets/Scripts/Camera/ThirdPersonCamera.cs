@@ -111,6 +111,19 @@ public class ThirdPersonCamera : MonoBehaviour
         mode = Mode.Transitioning;
     }
 
+    /// <summary>
+    /// Modos com 2+ jogadores locais (Dupla/Multi): fica em Overview (visao de cima)
+    /// olhando para um ponto fixo (ex.: centro da arena) em vez de perseguir 1 personagem,
+    /// com distancia maior para enxergar os dois times. Placeholder ate existir
+    /// multiplayer em rede de verdade (cada PC com a propria camera).
+    /// </summary>
+    public void SetWideOverview(Transform fixedTarget, float distance)
+    {
+        target = fixedTarget;
+        overviewDistance = distance;
+        mode = Mode.Overview;
+    }
+
     private void ApplyCursorState()
     {
         bool lockIt = mode == Mode.Chase || mode == Mode.Transitioning;

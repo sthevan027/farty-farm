@@ -38,7 +38,7 @@ public class VacaController : CharacterBase
     {
         moveInput = ReadWASD(out Vector3 dir) ? dir : Vector3.zero;
         if (moveInput != Vector3.zero) desiredFacing = moveInput;
-        if (Input.GetKeyDown(KeyCode.Space)) Milk();
+        if (Input.GetKeyDown(keyAction)) Milk();
     }
 
     protected override void AIStep()

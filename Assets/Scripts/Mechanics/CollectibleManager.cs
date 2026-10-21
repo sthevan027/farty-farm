@@ -4,7 +4,11 @@ using UnityEngine;
 /// <summary>Cria as ondas de moedas, as setas estilo GTA V e cuida da pontuacao.</summary>
 public class CollectibleManager : MonoBehaviour
 {
-    public static int Score { get; private set; }
+    // Score permanece como alias do Time A: usado pelo HUD nos modos Classico/Dupla
+    // (1 time so). No modo Multi, ScoreA/ScoreB marcam o placar de cada time.
+    public static int Score => ScoreA;
+    public static int ScoreA { get; private set; }
+    public static int ScoreB { get; private set; }
     public static int Wave { get; private set; }
 
     [Header("Materiais (criados pelo SceneSetup)")]
@@ -26,7 +30,8 @@ public class CollectibleManager : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
     {
-        Score = 0;
+        ScoreA = 0;
+        ScoreB = 0;
         Wave = 0;
     }
 
@@ -123,7 +128,7 @@ public class CollectibleManager : MonoBehaviour
 
     public void OnCollected(Collectible coin, CharacterBase who)
     {
-        Score++;
+        if (who.Team == 1) ScoreB++; else ScoreA++;
         who.RefillGas(gasBonus);
 
         if (burst != null)

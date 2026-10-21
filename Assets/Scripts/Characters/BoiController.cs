@@ -67,7 +67,7 @@ public class BoiController : CharacterBase
     protected override void PlayerInput()
     {
         if (ReadWASD(out Vector3 dir)) desiredFacing = dir;
-        wantFart = Input.GetKey(KeyCode.Space);
+        wantFart = Input.GetKey(keyAction);
     }
 
     protected override void AIStep()

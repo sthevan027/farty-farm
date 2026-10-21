@@ -1,4 +1,41 @@
-# Farty Farm — Versão 4
+# Farty Farm — Versão 5
+
+## Como atualizar
+Nenhuma mudança de assets/cena pesada nesta versão — só scripts. Abra no Unity 6 normalmente.
+
+## 1. Tela de seleção de modo (`GameManager.cs`)
+Antes de escolher Vaca/Boi, agora existe uma tela de **modo de jogo**:
+- **Clássico** — 1 jogador humano escolhe Vaca ou Boi; o outro bicho continua IA (como sempre foi).
+- **Dupla** — os dois bichos são jogadores humanos ao mesmo tempo, cooperativo, 1 placar só.
+  Hoje é **local/mesmo teclado** (P1 = WASD+Espaço na Vaca, P2 = Setas+Enter no Boi) — **placeholder**
+  até existir multiplayer em rede de verdade (2 PCs via LAN). Isso ainda **não está implementado**.
+- **Multi** — dupla contra dupla: clona Vaca+Boi (Time A) e cria uma 2ª dupla (Time B) do outro
+  lado da arena, com placar separado (`CollectibleManager.ScoreA`/`ScoreB`) — vence quem atingir
+  `MultiTargetScore` primeiro. Também local (P1 controla VacaA, P2 controla VacaB) pelo mesmo motivo acima.
+
+Teclas de cada personagem agora são configuráveis via `CharacterBase.SetInputScheme(...)`, usado
+para distribuir os esquemas (WASD+Espaço / Setas+Enter) entre os jogadores nos modos Dupla/Multi.
+
+**Não verificado no Unity** (ambiente sem Editor ao gerar isto) — validar os 3 modos em Play Mode
+antes de considerar pronto, principalmente a clonagem do Time B no modo Multi (materiais, posição, câmera).
+
+## 2. Câmera widescreen para 2+ jogadores (`ThirdPersonCamera.cs`)
+Modos com 2 ou mais jogadores humanos (Dupla/Multi) usam `Mode.Overview`: câmera fixa, mais alta,
+olhando para um ponto central entre os times — ativada via `SetWideOverview(Transform, float)`.
+No modo Clássico (1 jogador) a câmera continua em 3ª pessoa normal (atrás do pescoço, controle por
+mouse em modo Chase) — **não é top-down**, isso foi decisão explícita para não repetir o estilo antigo.
+
+## 3. Tentativa de modelo 3D importado para Vaca/Boi — revertida
+Nesta sessão tentamos trocar a geometria procedural (`AnimalMeshFactory.Cow()`/`Bull()`) por um
+modelo `.obj` externo (vaca+boi numa única malha, separados por ilhas de vértices desconectadas via
+union-find). A separação de malha não resolveu a duplicação visual relatada em jogo, então **todo
+esse trabalho foi revertido a pedido do Sthevan**: o projeto voltou a usar a geometria procedural
+original (igual ao estado anterior a esta tentativa). Nenhum arquivo do modelo importado permanece
+no repositório.
+
+---
+
+# Versão 4
 
 ## Como atualizar
 Substitua o projeto (ou a pasta `Assets/`) e abra no Unity 6. A cena é recriada automaticamente
